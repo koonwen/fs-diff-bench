@@ -40,4 +40,7 @@ clean:
 CLEAR-CACHE='sync; echo 3 | sudo tee /proc/sys/vm/drop_caches'
 bench: $(TARGET_STAT_BENCH) $(SYNTHETIC_DIR)
 	sudo -v
-	hyperfine --warmup 3 --prepare $(CLEAR-CACHE) './stat_bench root stat' './stat_bench root statx_all' './stat_bench root statx_one' --export-markdown stat_bench.md
+	hyperfine --warmup 3 \
+		  --prepare $(CLEAR-CACHE) \
+		  --export-markdown stat_bench.md \
+		  --parameter-list stat-type stat,statx_all,stat_one './stat_bench root {stat-type}'
