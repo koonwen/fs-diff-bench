@@ -139,7 +139,7 @@ let gen ~n ~levels ~root ~clock =
   | _ -> failwith "Input not recognized"
 
 let () =
-  Eio_main.run @@ fun env ->
+  Eio_linux.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
   let clock = Eio.Stdenv.clock env in
   let n = try Sys.argv.(1) |> int_of_string with _ -> 20 in

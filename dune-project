@@ -19,4 +19,4 @@
  (description
    "Hello is the classic hello world but organised as a proper OCaml project incuding command-line parsing and online help. It serves as a starting point for new projects.")
  (depends
-  eio))
+  eio_linux))

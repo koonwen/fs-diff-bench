@@ -10,7 +10,7 @@ homepage: "https://github.com/koonwen/fs-diff-bench"
 bug-reports: "https://github.com/koonwen/fs-diff-bench/issues"
 depends: [
   "dune" {>= "2.0"}
-  "eio"
+  "eio_linux"
 ]
 build: [
   ["dune" "subst"] {pinned}

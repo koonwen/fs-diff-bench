@@ -1,5 +1,5 @@
 (executable
  (name gen)
- (libraries eio eio_main fmt))
+ (libraries eio eio_linux fmt))
 
 (dirs :standard  \ root)

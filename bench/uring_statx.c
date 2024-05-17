@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
   struct io_uring_cqe *cqe;
 
   if (io_uring_queue_init(10, &ring, 0)) {
-    perror("io_uring_queue_initn");
+    perror("io_uring_queue_init");
     exit(1);
   };
 
