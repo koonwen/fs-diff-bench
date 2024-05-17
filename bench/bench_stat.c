@@ -1,4 +1,3 @@
-#include <linux/stat.h>
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <fcntl.h>
@@ -64,17 +63,19 @@ int statx_one_read(const char *path) {
 
 int main(int argc, char **argv) {
   char *path;
-  /* Check that file has been supplied */
   if (argc < 3)
     return 1;
 
   path = argv[1];
 
-  if (strcmp(argv[2], "stat")) {
+  if (strcmp(argv[2], "stat") == 0) {
+    printf("Running stat\n");
     dir_walk(path, stat_read);
-  } else if (strcmp(argv[2], "statx_all")) {
+  } else if (strcmp(argv[2], "statx_all") == 0) {
+    printf("Running statx_all_read\n");
     dir_walk(path, statx_all_read);
-  } else if (strcmp(argv[2], "statx_one")) {
+  } else if (strcmp(argv[2], "statx_one") == 0) {
+    printf("Running statx_one\n");
     dir_walk(path, statx_one_read);
   } else {
     exit(1);
