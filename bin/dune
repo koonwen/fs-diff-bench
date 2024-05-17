@@ -1,17 +1,17 @@
-(executable
- (name main)
- (public_name hello)
- (libraries hello cmdliner))
+; (executable
+;  (name main)
+;  (public_name hello)
+;  (libraries cmdliner))
 
-(rule
- (alias runtest)
- (action
-  (run ./main.exe everybody)))
+; (rule
+;  (alias runtest)
+;  (action
+;   (run ./main.exe everybody)))
 
-(rule
- (target build.ml)
- (deps (universe) build.sh)
- (action
-  (with-stdout-to
-   %{target}
-   (bash "./build.sh"))))
+; (rule
+;  (target build.ml)
+;  (deps (universe) build.sh)
+;  (action
+;   (with-stdout-to
+;    %{target}
+;    (bash "./build.sh"))))
