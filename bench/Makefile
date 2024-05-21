@@ -13,29 +13,24 @@ SHARED_OBJS :=
 SYNTHETIC_DIR := root/
 
 # final executables
-TARGET_BENCH_STAT := bench_stat
-
-# final executables
-TARGET_BENCH_IO := bench_io
+EXE := bench_stat bench_io
 
 .PHONY: all clean
 
-all: $(TARGET_BENCH_STAT) $(TARGET_BENCH_IO)
+all: $(EXE)
 
+bench_stat: bench_stat.o
+	$(CC) -o $@ $<
+
+bench_io: bench_io.o
+	$(CC) -o $@ $< -luring
 
 # Rule to compile each source file into an object file
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Rule to link all object files into the final executable 'stat_bench'
-$(TARGET_BENCH_STAT): $(SHARED_OBJS) bench_stat.o
-	$(CC) $^ -o $@ $(LDFLAGS)
-
-$(TARGET_BENCH_IO): bench_io.o
-	$(CC) $^ -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(OBJS) $(SYNTHETIC_DIR) $(TARGET_BENCH_STAT) $(TARGET_BENCH_IO)
+	rm -rf $(OBJS) $(SYNTHETIC_DIR) $(EXE)
 
 CLEAR-CACHE='sync; echo 3 | sudo tee /proc/sys/vm/drop_caches'
 bench: $(TARGET_BENCH_STAT) $(SYNTHETIC_DIR)

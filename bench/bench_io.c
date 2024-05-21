@@ -1,3 +1,4 @@
+#include <linux/limits.h>
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <fcntl.h>
@@ -29,6 +30,7 @@ void do_sys_walk(const char *base_path) {
       sprintf(path, "%s/%s", base_path, dp->d_name);
 
       if (dp->d_type == DT_DIR) {
+        printf("%s\n", path);
         do_sys_walk(path);
       } else {
         struct statx buf;
@@ -36,7 +38,6 @@ void do_sys_walk(const char *base_path) {
           perror("statx");
           exit(1);
         };
-	printf("size = %Ld\n", buf.stx_size);
       }
     }
   }
@@ -44,114 +45,95 @@ void do_sys_walk(const char *base_path) {
   closedir(dir);
 }
 
-/* int do_uring_walk(const char *base_path) { */
-/*   char *path; */
-/*   struct io_uring ring; */
-/*   struct io_uring_sqe *sqe; */
-/*   struct statx buf; */
-/*   struct io_uring_cqe *cqe; */
+#define QUEUE_DEPTH 3
+struct statx_info {
+  char path_name[PATH_MAX];
+  struct statx statxbuf;
+  struct io_uring_cqe cqe;
+};
 
-/*   if (io_uring_queue_init(10, &ring, 0)) { */
-/*     perror("io_uring_queue_init"); */
-/*     exit(1); */
-/*   }; */
+struct io_uring_cqe **initialize_cqes(int queue_depth) {
 
-/*   sqe = io_uring_get_sqe(&ring); */
+  struct io_uring_cqe *cqes =
+    (struct io_uring_cqe *) malloc((sizeof(struct io_uring_cqe) * queue_depth));
 
-/*   io_uring_prep_statx(sqe, AT_FDCWD, path, 0, STATX_SIZE, &buf); */
-/*   io_uring_submit(&ring); */
+  struct io_uring_cqe **cqes_ptr =
+    (struct io_uring_cqe **) malloc((sizeof(struct io_uring_cqe*) * queue_depth));
 
-/*   if (io_uring_wait_cqe(&ring, &cqe)) { */
-/*     perror("io_uring_wait_cqe"); */
-/*     exit(1); */
-/*   }; */
-
-/*   return 0; */
-/* } */
-
-void process_statx(struct io_uring *ring, int fd, const char *path) {
-  struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
-  if (!sqe) {
-    fprintf(stderr, "Failed to get SQE\n");
-    exit(EXIT_FAILURE);
-  }
-
-  struct statx *statxbuf = malloc(sizeof(struct statx));
-  if (!statxbuf) {
-    perror("malloc");
-    exit(EXIT_FAILURE);
-  }
-
-  io_uring_prep_statx(sqe, fd, path, AT_EMPTY_PATH | AT_NO_AUTOMOUNT,
-                      STATX_BASIC_STATS, statxbuf);
-  io_uring_sqe_set_data(sqe, statxbuf);
+  for (int i = 0; i < queue_depth; i++) {
+        cqes_ptr[i] = &cqes[i];
+  };
+  /* Need to remember to free this */
+  return cqes_ptr;
 }
 
-void process_directory(struct io_uring *ring, const char *dirpath) {
-  DIR *dir = opendir(dirpath);
+
+
+void do_uring_batched_walk(const char *base_path, struct io_uring *ring, struct io_uring_cqe **cqe_ptr) {
+  static int count = 0;
+  static struct statx statx_buf[QUEUE_DEPTH];
+  static path_name name_buf[QUEUE_DEPTH];
+  char *path = name_buf[count];
+  struct dirent *dp;
+  DIR *dir = opendir(base_path);
+
   if (!dir) {
-    perror("opendir");
-    return;
-  }
-
-  struct dirent *entry;
-  while ((entry = readdir(dir)) != NULL) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-      continue;
-    }
-
-    char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s/%s", dirpath, entry->d_name);
-
-    if (entry->d_type == DT_DIR) {
-      process_directory(ring, path);
-    } else {
-      process_statx(ring, -1, path);
-    }
-
-    // Submit requests in batches
-    if (io_uring_sq_ready(ring) >= BATCH_SIZE) {
-      io_uring_submit(ring);
-    }
-  }
-
-  closedir(dir);
-}
-
-void reap_completions(struct io_uring *ring) {
-  struct io_uring_cqe *cqe;
-  while (io_uring_peek_cqe(ring, &cqe) == 0) {
-    struct statx *statxbuf = io_uring_cqe_get_data(cqe);
-    if (cqe->res < 0) {
-      fprintf(stderr, "statx failed: %s\n", strerror(-cqe->res));
-    } else {
-      // Process the statx result here (e.g., print or log it)
-      printf("File size: %llu\n", statxbuf->stx_size);
-    }
-
-    free(statxbuf);
-    io_uring_cqe_seen(ring, cqe);
-  }
-
-}
-void do_uring_batched_io(char *base_path) {
-
-  struct io_uring ring;
-  if (io_uring_queue_init(QUEUE_DEPTH, &ring, 0) < 0) {
-    perror("io_uring_queue_init");
+    perror("Error opening directory");
     exit(1);
   }
 
-  process_directory(&ring, base_path);
+  while ((dp = readdir(dir)) != NULL) {
+    /* Ignore . and .. */
+    if (strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0) {
+      sprintf(path, "%s/%s", base_path, dp->d_name);
 
-  // Submit any remaining requests
-  io_uring_submit(&ring);
+      if (dp->d_type == DT_DIR) {
+        printf("%s\n", path);
+        do_uring_batched_walk(path, ring);
+      } else {
+        printf("count=%d\n", count);
+        if (count < QUEUE_DEPTH) {
+          struct io_uring_sqe *sqe;
+          sqe = io_uring_get_sqe(ring);
+          sqe->user_data = count;
+          io_uring_prep_statx(sqe, AT_FDCWD, path, 0, STATX_SIZE,
+                              &statx_buf[count]);
+          count++;
+        } else {
+          /* drain completion queue */
+          if (!io_uring_submit_and_get_events(ring)) {
+            perror("io_uring_submit_and_get_events");
+            exit(1);
+          };
+          io_uring_peek_batch_cqe(ring, cqe_ptr, QUEUE_DEPTH);
+          for (int i = 0; i < QUEUE_DEPTH; i++) {
+            printf("Size of %s: %Ld, CQE user_data=%Lu", name_buf[i],
+                   statx_buf[i].stx_size, cqe_ptr[i]->user_data);
+            io_uring_cqe_seen(ring, cqe_ptr[i]);
+          }
+          count = 0;
+        }
+      }
+    }
+  }
+  closedir(dir);
+}
 
-  // Reap leftover completions
-  reap_completions(&ring);
-
-  io_uring_queue_exit(&ring);
-
+void reap_completions(struct io_uring *ring, struct io_uring_cqe **cqe_ptr, int count){
+  /* Last submit and read */
+  if (count > 0) {
+    if (io_uring_submit_and_get_events(ring)) {
+      perror("io_uring_submit_and_get_events");
+      exit(1);
+    }
+    io_uring_peek_batch_cqe(ring, cqe_ptr, QUEUE_DEPTH);
+    for (int i = 0; i < QUEUE_DEPTH; i++) {
+      printf("Size of %s: %Ld, CQE user_data=%Lu", name_buf[i],
+             statx_buf[i].stx_size, cqe_ptr[i]->user_data);
+      io_uring_cqe_seen(ring, cqe_ptr[i]);
+    }
+    count = 0;
+  }
 }
 
 int main(int argc, char **argv) {
@@ -166,9 +148,9 @@ int main(int argc, char **argv) {
   if (strcmp(argv[2], "sys") == 0) {
     do_sys_walk(path);
   } else if (strcmp(argv[2], "uring_batched") == 0) {
-    do_uring_batched_io(path);
-    /* } else if (strcmp(argv[2], "statx_one")) { */
-    /*   dir_walk(path, statx_one_read); */
+    struct io_uring ring;
+    io_uring_queue_init(QUEUE_DEPTH, &ring, 0);
+    do_uring_batched_walk(path, &ring);
   } else {
     exit(1);
   }
