@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -Wall -Wextra -std=c11
+CFLAGS := -Wall -Wextra -std=c11 -g
 LDFLAGS := -luring # Additional libraries to link against, if needed
 
 # Get all C source files in the current directory
