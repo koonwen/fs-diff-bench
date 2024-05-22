@@ -49,4 +49,4 @@ time_io: $(TARGET_BENCH_STAT) $(SYNTHETIC_DIR)
 	hyperfine --warmup 3 \
 		  --prepare $(CLEAR-CACHE) \
 		  --export-markdown bench_io.md \
-		  --parameter-list backend sys,uring_batched './bench_io root {backend}'
+		  --parameter-list backend sys,uring_batched,uring_batched_sqpoll './bench_io root {backend}'
