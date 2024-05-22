@@ -12,7 +12,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define QUEUE_DEPTH 32
+#define QUEUE_DEPTH 64
 #define DIRECTORY_SZ 4096
 static uint64_t size_in_bytes = 0;
 
